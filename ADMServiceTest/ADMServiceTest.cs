@@ -48,9 +48,9 @@ namespace ADMServiceTest
             public TestGroup(String id = "tg", String name = "TG") : base(id, name)
             {
                 t0 = new TestDevice01("t0");
-                t0.ReportInterval = 1;
+                t0.ReportInterval = 25;
                 t1 = new TestDevice01("t1");
-                t1.ReportInterval = 1;
+                t1.ReportInterval = 25;
                 AddDevice(t0);
                 AddDevice(t1);
                 _timer = new System.Timers.Timer();
@@ -99,22 +99,23 @@ namespace ADMServiceTest
         public ADMServiceTest() : base(SERVICE_CMNAME, "ADMSTClient", "ADMServiceTest", "ADMServiceTestLog")
         {
             Chetch.Arduino2.ArduinoDeviceManager ADM;
-            /*if (useSerial)
+            bool useSerial = false;
+            if (useSerial)
             {
-                String portName = "CH340";
                 int localUartSize = 64;
                 int remoteUartSize = 64;
-                ADM = Chetch.Arduino2.ArduinoDeviceManager.Create(portName, 115200, localUartSize, remoteUartSize);
+                ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
             }
             else
-            {*/
-            //String serviceName = "kaki5";
-            String serviceName = "oblong3";
-            String networkServiceURL = "http://192.168.2.100:8001/api";
-            int localUartSize = 64;
-            int remoteUartSize = 64;
-            ADM = Chetch.Arduino2.ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
-            //}
+            {
+                //String serviceName = "kaki5";
+                String serviceName = "oblong3";
+                //String networkServiceURL = "http://192.168.2.100:8001/api";
+                String networkServiceURL = "http://192.168.1.188:8001/api";
+                int localUartSize = 64;
+                int remoteUartSize = 64;
+                ADM = ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
+            }
 
 
             SwitchGroup swg = new SwitchGroup();
