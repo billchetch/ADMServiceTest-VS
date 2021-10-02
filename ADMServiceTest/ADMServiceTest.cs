@@ -48,14 +48,14 @@ namespace ADMServiceTest
             public TestGroup(String id = "tg", String name = "TG") : base(id, name)
             {
                 t0 = new TestDevice01("t0");
-                t0.ReportInterval = 25;
+                t0.ReportInterval = 100;
                 t1 = new TestDevice01("t1");
-                t1.ReportInterval = 25;
+                t1.ReportInterval = 100;
                 AddDevice(t0);
                 AddDevice(t1);
                 _timer = new System.Timers.Timer();
                 _timer.Elapsed += OnTimer;
-                _timer.Interval = 10000;
+                _timer.Interval = 30*1000;
                 _timer.AutoReset = true;
                 _timer.Start();
             }
@@ -99,31 +99,38 @@ namespace ADMServiceTest
         public ADMServiceTest() : base(SERVICE_CMNAME, "ADMSTClient", "ADMServiceTest", "ADMServiceTestLog")
         {
             Chetch.Arduino2.ArduinoDeviceManager ADM;
+            int localUartSize = 64;
+            int remoteUartSize = 64;
+            String serviceName = "kaki1";
+            //String serviceName = "oblong3";
+            String networkServiceURL = "http://192.168.2.100:8001/api";
+            //String networkServiceURL = "http://192.168.1.188:8001/api";
+
             bool useSerial = false;
-            if (useSerial)
+            /*if (useSerial)
             {
-                int localUartSize = 64;
-                int remoteUartSize = 64;
                 ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
             }
             else
             {
-                //String serviceName = "kaki5";
-                String serviceName = "oblong3";
-                //String networkServiceURL = "http://192.168.2.100:8001/api";
-                String networkServiceURL = "http://192.168.1.188:8001/api";
-                int localUartSize = 64;
-                int remoteUartSize = 64;
                 ADM = ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
             }
 
+            ADM.AddDeviceGroup(new SwitchGroup());
+            ADM.AddDeviceGroup(new TestGroup());
+            AddADM(ADM);*/
 
-            SwitchGroup swg = new SwitchGroup();
-            ADM.AddDeviceGroup(swg);
-            
-            TestGroup tg = new TestGroup();
-            ADM.AddDeviceGroup(tg);
-
+            if (useSerial)
+            {
+                ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
+            }
+            else
+            {
+                serviceName = "oblong3";
+                ADM = ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
+            }
+            ADM.AddDeviceGroup(new SwitchGroup());
+            ADM.AddDeviceGroup(new TestGroup());
             AddADM(ADM);
 
             Settings = Properties.Settings.Default;
