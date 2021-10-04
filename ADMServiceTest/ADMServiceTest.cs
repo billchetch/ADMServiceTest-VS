@@ -48,9 +48,9 @@ namespace ADMServiceTest
             public TestGroup(String id = "tg", String name = "TG") : base(id, name)
             {
                 t0 = new TestDevice01("t0");
-                t0.ReportInterval = 100;
+                t0.ReportInterval = 50;
                 t1 = new TestDevice01("t1");
-                t1.ReportInterval = 100;
+                t1.ReportInterval = 50;
                 AddDevice(t0);
                 AddDevice(t1);
                 _timer = new System.Timers.Timer();
@@ -63,6 +63,8 @@ namespace ADMServiceTest
             private void OnTimer(Object sender, EventArgs eargs)
             {
                 //Console.WriteLine("{0} sent value {1}", td.ID, td.TestValue);
+                if (!ADM.IsReady) return;
+
                 if (received.Count == 2 && missing.Count == 2)
                 {
                     String s = String.Format("t0 recieved/missing = {0}/{1}, t1 received/missing = {2}/{3}", received["t0"], missing["t0"], received["t1"], missing["t1"]);
