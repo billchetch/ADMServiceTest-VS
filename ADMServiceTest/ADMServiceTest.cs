@@ -39,23 +39,26 @@ namespace ADMServiceTest
 
         public class TestGroup : ArduinoDeviceGroup
         {
-            TestDevice01 t0;
-            TestDevice01 t1;
+            List<TestDevice01> tdevs = new List<TestDevice01>();
             Dictionary<String, int> missing = new Dictionary<String, int>();
             Dictionary<String, int> received = new Dictionary<String, int>();
             System.Timers.Timer _timer;
 
             public TestGroup(String id = "tg", String name = "TG") : base(id, name)
             {
-                t0 = new TestDevice01("t0");
-                t0.ReportInterval = 50;
-                t1 = new TestDevice01("t1");
-                t1.ReportInterval = 50;
-                AddDevice(t0);
-                AddDevice(t1);
+
+                for(int i = 0; i < 6; i++)
+                {
+                    var td = new TestDevice01("t" + i);
+                    td.ReportInterval = 200;
+                    tdevs.Add(td);
+                    AddDevice(td);
+                }
+
+                //Report via onsole
                 _timer = new System.Timers.Timer();
                 _timer.Elapsed += OnTimer;
-                _timer.Interval = 30*1000;
+                _timer.Interval = 10*1000;
                 _timer.AutoReset = true;
                 _timer.Start();
             }
@@ -65,9 +68,12 @@ namespace ADMServiceTest
                 //Console.WriteLine("{0} sent value {1}", td.ID, td.TestValue);
                 if (!ADM.IsReady) return;
 
-                if (received.Count == 2 && missing.Count == 2)
+                if (received.Count == tdevs.Count  && missing.Count == tdevs.Count)
                 {
-                    String s = String.Format("t0 recieved/missing = {0}/{1}, t1 received/missing = {2}/{3}", received["t0"], missing["t0"], received["t1"], missing["t1"]);
+                    String s = "";
+                    foreach(TestDevice01 td in tdevs){
+                        s += String.Format("{0} rec/mis = {1}/{2}, ", td.ID,  received[td.ID], missing[td.ID]);
+                    }
                     ADM.Tracing?.TraceEvent(System.Diagnostics.TraceEventType.Information, 0, s);
                 }
             }
@@ -83,7 +89,10 @@ namespace ADMServiceTest
                         missing[device.ID] = 0;
                     } else
                     {
-                        if (Math.Abs(td.TestValue - td.PrevTestValue) != 1) missing[device.ID]++;
+                        if (Math.Abs(td.TestValue - td.PrevTestValue) != 1)
+                        {
+                            missing[device.ID]++;
+                        }
                     }
 
                     if(!received.ContainsKey(device.ID))
@@ -98,15 +107,66 @@ namespace ADMServiceTest
             }
         }
 
+        public class GensetGovernor : ArduinoDeviceGroup
+        {
+            Chetch.Arduino2.Devices.Electricity.ZMPT101B zmpt;
+            Chetch.Arduino2.Devices.Motors.ServoController servo;
+
+            public GensetGovernor(String id = "gov", String name = "GOV") : base(id, name)
+            {
+                zmpt = new Chetch.Arduino2.Devices.Electricity.ZMPT101B("z1", 14);
+                zmpt.ReportInterval = 2000;
+                zmpt.SetTargetParameterse(Chetch.Arduino2.Devices.Electricity.ZMPT101B.Target.VOLTAGE, 223, 2, 200, 250);
+                AddDevice(zmpt);
+                
+                /*servo = new Chetch.Arduino2.Devices.Motors.ServoController("srv1", 7);
+                servo.Position = 90; // Chetch.Arduino2.Devices.Motors.ServoController.SERVER_POSITION_NONE;
+                AddDevice(servo);*/
+            }
+
+
+            protected override void OnDeviceReady(ArduinoDevice device)
+            {
+                base.OnDeviceReady(device);
+
+                if(device == servo)
+                {
+                    Task.Run(() =>
+                    {
+                        System.Threading.Thread.Sleep(500);
+                        servo.RotateBy(50);
+                        System.Threading.Thread.Sleep(500);
+                        servo.RotateBy(-100);
+                        System.Threading.Thread.Sleep(500);
+                        servo.RotateBy(50);
+                        //servo.MoveTo(35);
+                    });
+                }
+            }
+
+            protected override void HandleDevicePropertyChange(ArduinoDevice device, PropertyInfo property)
+            {
+                if (property.Name == "Voltage")
+                {
+                    Console.WriteLine("{0} Voltage: {1}, Hz: {2}", zmpt.ID, zmpt.Voltage, zmpt.Hz);
+                }
+                if (property.Name == "Adjustment")
+                {
+                    Console.WriteLine("{0} Adjust {1} by: {2}", zmpt.ID, zmpt.Targeting, zmpt.Adjustment);
+                }
+            }
+        }
+
         public ADMServiceTest() : base(SERVICE_CMNAME, "ADMSTClient", "ADMServiceTest", "ADMServiceTestLog")
         {
             Chetch.Arduino2.ArduinoDeviceManager ADM;
-            int localUartSize = 64;
-            int remoteUartSize = 64;
-            String serviceName = "kaki1";
+            int localUartSize = 256;
+            int remoteUartSize = 256;
+            String serviceName = "crayfish9";
             //String serviceName = "oblong3";
-            String networkServiceURL = "http://192.168.2.100:8001/api";
+            //String networkServiceURL = "http://192.168.2.100:8001/api";
             //String networkServiceURL = "http://192.168.1.188:8001/api";
+            String networkServiceURL = "http://192.168.2.180:8001/api";
 
             bool useSerial = false;
             /*if (useSerial)
@@ -124,15 +184,21 @@ namespace ADMServiceTest
 
             if (useSerial)
             {
-                ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
+                ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_UNO, 115200, localUartSize, remoteUartSize);
+                //ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
             }
             else
             {
-                serviceName = "oblong3";
+                //serviceName = "oblong3";
                 ADM = ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
             }
-            ADM.AddDeviceGroup(new SwitchGroup());
+            
+            //ADM.AddDeviceGroup(new SwitchGroup());
             ADM.AddDeviceGroup(new TestGroup());
+
+            //ADM.AddDeviceGroup(new GensetGovernor());
+
+
             AddADM(ADM);
 
             Settings = Properties.Settings.Default;
