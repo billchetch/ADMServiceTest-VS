@@ -6,6 +6,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Chetch.Arduino2;
 using Chetch.Arduino2.Devices;
+using Chetch.Arduino2.Devices.Electricity;
+using Chetch.Arduino2.Devices.Motors;
+using Chetch.Arduino2.Devices.Displays;
 
 namespace ADMServiceTest
 {
@@ -44,13 +47,13 @@ namespace ADMServiceTest
             Dictionary<String, int> received = new Dictionary<String, int>();
             System.Timers.Timer _timer;
 
-            public TestGroup(String id = "tg", String name = "TG") : base(id, name)
+            public TestGroup(String id = "tg", int testSize = 1, int reportInterval = 1000, String name = "TG") : base(id, name)
             {
 
-                for(int i = 0; i < 6; i++)
+                for(int i = 0; i < testSize; i++)
                 {
                     var td = new TestDevice01("t" + i);
-                    td.ReportInterval = 200;
+                    td.ReportInterval = reportInterval;
                     tdevs.Add(td);
                     AddDevice(td);
                 }
@@ -70,9 +73,9 @@ namespace ADMServiceTest
 
                 if (received.Count == tdevs.Count  && missing.Count == tdevs.Count)
                 {
-                    String s = "";
+                    String s = UID + ": Rec/mis: ";
                     foreach(TestDevice01 td in tdevs){
-                        s += String.Format("{0} rec/mis = {1}/{2}, ", td.ID,  received[td.ID], missing[td.ID]);
+                        s += String.Format("{0}={1}/{2}, ", td.ID,  received[td.ID], missing[td.ID]);
                     }
                     ADM.Tracing?.TraceEvent(System.Diagnostics.TraceEventType.Information, 0, s);
                 }
@@ -109,19 +112,24 @@ namespace ADMServiceTest
 
         public class GensetGovernor : ArduinoDeviceGroup
         {
-            Chetch.Arduino2.Devices.Electricity.ZMPT101B zmpt;
-            Chetch.Arduino2.Devices.Motors.ServoController servo;
+            LCD lcd;
+            ZMPT101B zmpt;
+            ServoController servo;
 
             public GensetGovernor(String id = "gov", String name = "GOV") : base(id, name)
             {
-                zmpt = new Chetch.Arduino2.Devices.Electricity.ZMPT101B("z1", 14);
-                zmpt.ReportInterval = 2000;
-                zmpt.SetTargetParameterse(Chetch.Arduino2.Devices.Electricity.ZMPT101B.Target.VOLTAGE, 223, 2, 200, 250);
+                lcd = new LCD("lcd1", LCD.DataPinSequence.Pins_5_2, 11, 12);
+                AddDevice(lcd);
+
+                zmpt = new Chetch.Arduino2.Devices.Electricity.ZMPT101B("z1", ArduinoDevice.AnalogPin.A0);
+                //zmpt.ReportInterval = 1000;
+                //zmpt.SetTargetParameterse(Chetch.Arduino2.Devices.Electricity.ZMPT101B.Target.VOLTAGE, 223, 2, 200, 248);
                 AddDevice(zmpt);
                 
-                /*servo = new Chetch.Arduino2.Devices.Motors.ServoController("srv1", 7);
-                servo.Position = 90; // Chetch.Arduino2.Devices.Motors.ServoController.SERVER_POSITION_NONE;
-                AddDevice(servo);*/
+                servo = new Chetch.Arduino2.Devices.Motors.ServoController("srv1", 7);
+                //servo.Position = 90; // Chetch.Arduino2.Devices.Motors.ServoController.SERVER_POSITION_NONE;
+                //servo.TrimFactor = -4;
+                AddDevice(servo);
             }
 
 
@@ -129,30 +137,41 @@ namespace ADMServiceTest
             {
                 base.OnDeviceReady(device);
 
+                if(device == lcd)
+                {
+                    lcd.Clear();
+                    lcd.Print("Frackle!");
+                }
+
                 if(device == servo)
                 {
-                    Task.Run(() =>
+                    /*Task.Run(() =>
                     {
-                        System.Threading.Thread.Sleep(500);
-                        servo.RotateBy(50);
-                        System.Threading.Thread.Sleep(500);
-                        servo.RotateBy(-100);
-                        System.Threading.Thread.Sleep(500);
-                        servo.RotateBy(50);
-                        //servo.MoveTo(35);
-                    });
-                }
+                        System.Threading.Thread.Sleep(2000);
+                        servo.MoveTo(90);
+                        System.Threading.Thread.Sleep(2000);
+                        for (int i = 0; i < 1000; i++)
+                        {
+                            int inc = i % 2 == 0 ? 15 : 30;
+                            servo.RotateBy(inc);
+                            System.Threading.Thread.Sleep(4000);
+                            servo.RotateBy(-inc);
+                            System.Threading.Thread.Sleep(4000);
+                        }
+                    });*/
+                } 
             }
 
             protected override void HandleDevicePropertyChange(ArduinoDevice device, PropertyInfo property)
             {
                 if (property.Name == "Voltage")
                 {
-                    Console.WriteLine("{0} Voltage: {1}, Hz: {2}", zmpt.ID, zmpt.Voltage, zmpt.Hz);
+                    String s  =String.Format("{0:F1}V, {1:F0}Hz", zmpt.Voltage, zmpt.Hz);
+                    Console.WriteLine(s);
                 }
                 if (property.Name == "Adjustment")
                 {
-                    Console.WriteLine("{0} Adjust {1} by: {2}", zmpt.ID, zmpt.Targeting, zmpt.Adjustment);
+                    //Console.WriteLine("{0} Adjust {1} by: {2}", zmpt.ID, zmpt.Targeting, zmpt.Adjustment);
                 }
             }
         }
@@ -160,16 +179,18 @@ namespace ADMServiceTest
         public ADMServiceTest() : base(SERVICE_CMNAME, "ADMSTClient", "ADMServiceTest", "ADMServiceTestLog")
         {
             Chetch.Arduino2.ArduinoDeviceManager ADM;
-            int localUartSize = 256;
-            int remoteUartSize = 256;
-            String serviceName = "crayfish9";
+            int localUartSize = 64;
+            int remoteUartSize = 64;
             //String serviceName = "oblong3";
             //String networkServiceURL = "http://192.168.2.100:8001/api";
             //String networkServiceURL = "http://192.168.1.188:8001/api";
             String networkServiceURL = "http://192.168.2.180:8001/api";
 
             bool useSerial = false;
-            /*if (useSerial)
+            String serviceName;
+
+            /*serviceName = "crayfish8";
+            if (useSerial)
             {
                 ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
             }
@@ -178,27 +199,29 @@ namespace ADMServiceTest
                 ADM = ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
             }
 
-            ADM.AddDeviceGroup(new SwitchGroup());
-            ADM.AddDeviceGroup(new TestGroup());
-            AddADM(ADM);*/
+            //ADM.AddDeviceGroup(new SwitchGroup());
+            ADM.AddDeviceGroup(new TestGroup("tg1", 8, 100));
+            AddADM(ADM); */
 
+
+            
+            serviceName = "crayfish9";
             if (useSerial)
             {
-                ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_UNO, 115200, localUartSize, remoteUartSize);
+                ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_MEGA, 115200, localUartSize, remoteUartSize);
                 //ADM = ArduinoDeviceManager.Create(ArduinoSerialConnection.BOARD_CH340, 115200, localUartSize, remoteUartSize);
             }
             else
             {
+                localUartSize = 256;
+                remoteUartSize = 256;
                 //serviceName = "oblong3";
                 ADM = ArduinoDeviceManager.Create(serviceName, networkServiceURL, localUartSize, remoteUartSize);
             }
-            
-            //ADM.AddDeviceGroup(new SwitchGroup());
-            ADM.AddDeviceGroup(new TestGroup());
-
-            //ADM.AddDeviceGroup(new GensetGovernor());
-
-
+            ADM.AttachMode = ArduinoDeviceManager.AttachmentMode.OBSERVER_OBSERVED;
+            ADM.AREF = ArduinoDeviceManager.AnalogReference.AREF_EXTERNAL;
+            //ADM.AddDeviceGroup(new TestGroup("tg2", 5, 2000));
+            ADM.AddDeviceGroup(new GensetGovernor());
             AddADM(ADM);
 
             Settings = Properties.Settings.Default;
